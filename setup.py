@@ -11,7 +11,7 @@ except LookupError:
 
 with open('README.md', 'r', encoding = 'utf8') as fh:
 	long_description = fh.read()
-VERSION = '0.0.1'
+VERSION = '0.0.2'
 
 setuptools.setup(
 	name = 'tgolosbase',
@@ -19,7 +19,7 @@ setuptools.setup(
 	author = 'ksantoprotein',
 	author_email = 'ksantoprotein@rambler.ru',
 	description = 'Python library for GOLOS',
-#	long_description = long_description,
+	#long_description = long_description,
 	long_description_content_type = 'text/markdown',
 	url = 'https://github.com/ksantoprotein/thallid-golos',
 	#packages = setuptools.find_packages()
@@ -35,7 +35,6 @@ setuptools.setup(
 		"websocket-client",
 		"urllib3",
 		"ecdsa>=0.13",
-		"graphenelib>=0.5.3",
 	],
 	#setup_requires=['pytest-runner'],
 	#tests_require=['pytest'],
