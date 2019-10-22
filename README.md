@@ -1,4 +1,4 @@
-# thallid-golos - Unofficial Python Library for GOLOS
+# thallid-golos - Python Library for GOLOS
 
 Thallid-Golos библиотека для блокчейна Golos
 

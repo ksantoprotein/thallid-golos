@@ -842,6 +842,37 @@ class Api():
 	
 		return accounts_dict
 		
+	def get_all_accounts_posting_keys(self):
+	
+		n = self.get_account_count()
+		limit = 1000
+		print('find', n, 'accounts')
+		t1 = time()
+		
+		accounts_dict = {}
+		start_login, i = 'a', 0
+		while True:
+			print(n - i, start_login)
+			i += limit
+			logins = self.rpc.call('lookup_accounts', start_login, limit)
+			
+			if len(logins) == 1 and logins[0] == start_login:
+				accounts = self.rpc.call('get_accounts', logins)
+				for account in accounts:
+					for posting_key, auth in account["posting"]["key_auths"]:
+						accounts_dict[posting_key] = account["name"]
+				break
+
+			accounts = self.rpc.call('get_accounts', logins[:-1])
+			for account in accounts:
+				for posting_key, auth in account["posting"]["key_auths"]:
+					accounts_dict[posting_key] = account["name"]
+
+			start_login = logins[-1:][0]
+		print( round((time() - t1) / 60, 1), 'min') 
+	
+		return accounts_dict
+		
 	##### ##### follow ##### #####
 		
 	##### ##### market_history ##### #####
@@ -991,6 +1022,14 @@ class Api():
 			public_key = account[0]["posting"]["key_auths"][0][0]
 			return(public_key)
 			
+		return False
+
+	def is_posting_key(self, login, public_key):
+		account = self.rpc.call('get_accounts', [login])
+		if account:
+			keys = [key for key, auth in account[0]["posting"]["key_auths"]]
+			if public_key in keys:
+				return True
 		return False
 
 
