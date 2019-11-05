@@ -12,9 +12,11 @@ expiration = 60
 
 
 nodes = [
-		'wss://api.golos.blckchnd.com/ws',
-		'wss://golos.solox.world/ws',
+		#'wss://api.golos.blckchnd.com/ws',
+		'wss://golos.solox.world/ws',			#'https://golos.solox.world/'
 		'wss://golos.lexa.host/ws',
+		'wss://denisgolub.name/ws',
+		'wss://shafarevich.space/ws',
 		]
 
 

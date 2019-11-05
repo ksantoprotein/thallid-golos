@@ -11,7 +11,7 @@ except LookupError:
 
 with open('README.md', 'r', encoding = 'utf8') as fh:
 	long_description = fh.read()
-VERSION = '0.0.5'
+VERSION = '0.0.6'
 
 setuptools.setup(
 	name = 'tgolosbase',
