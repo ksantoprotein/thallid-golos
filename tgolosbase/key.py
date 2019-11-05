@@ -37,9 +37,9 @@ class Key():
 			#print(int(base58CheckDecode(private_key), 16))							# =>repr=>int 
 			#print(int(gphBase58CheckDecode(public_key[len(self.prefix):]), 16))	# =>repr=>int 
 			
-			print(role, self.get_public_from_private(keys["private"][role]))
+			#print(role, self.get_public_from_private(keys["private"][role]))
 			
-			print(self.is_key(keys["private"][role], keys["public"][role]))
+			#print(self.is_key(keys["private"][role], keys["public"][role]))
 			
 		return(keys)
 		
@@ -69,3 +69,20 @@ class Key():
 		return res
 		
 	##### ##### ##### ##### #####
+	
+	def get_sm_keys(self, name, set, solt):
+
+		b = bytes(name + set + solt, 'utf8')
+		secret = hashlib.sha256(b).digest()					# bytes(b58)
+		
+		k = hexlify(secret).decode('ascii')					# repr(b58) Gives the hex representation of the Graphene private key.
+		private_key = str(base58CheckEncode(0x80, k))[1:]	# без 5
+		
+		order = ecdsa.SigningKey.from_string(secret, curve = ecdsa.SECP256k1).curve.generator.order()
+		point = ecdsa.SigningKey.from_string(secret, curve = ecdsa.SECP256k1).verifying_key.pubkey.point
+		x_str = ecdsa.util.number_to_string(point.x(), order)
+		compressed = hexlify(chr(2 + (point.y() & 1)).encode("ascii") + x_str).decode("ascii")
+		public_key = str(gphBase58CheckEncode(compressed))
+
+		return([private_key, public_key])
+	
