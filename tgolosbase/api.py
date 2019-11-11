@@ -1092,7 +1092,7 @@ class Api():
 		#body = kwargs.pop("body", None)		
 		#['title', 'body', 'json_metadata']
 	
-		author, permlink = resolve_url(url)
+		author, permlink = self.resolve_url(url)
 		ops = []
 		json_body = [
 			'reblog', {
@@ -1264,7 +1264,7 @@ class Api():
 	
 		vote_limit = str(kwargs.pop("vote_limit", 0))
 	
-		author, permlink = resolve_url(url)
+		author, permlink = self.resolve_url(url)
 		user_post = self.rpc.call('get_content', author, permlink, vote_limit)
 		
 		return user_post
