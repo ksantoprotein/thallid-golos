@@ -34,7 +34,7 @@ object_type = {
 timeformat = '%Y-%m-%dT%H:%M:%S%Z'
 
 
-def varint(n):	#ok
+def varint(n):
 	""" Varint encoding
 	"""
 	data = b''
@@ -78,7 +78,7 @@ def JsonObj(data):
 							 (type(data).__name__, data.__class__))
 
 
-class String:	### ok
+class String:
 	def __init__(self, d):
 		self.data = d
 
@@ -113,8 +113,6 @@ class String:	### ok
 				r.append(s)
 		return bytes("".join(r), "utf-8")
 
-
-
 							 
 class Uint8:
 	def __init__(self, d):
@@ -127,7 +125,7 @@ class Uint8:
 		return '%d' % self.data
 
 
-class Int16:	#ok
+class Int16:
 	def __init__(self, d):
 		self.data = int(d)
 
@@ -138,7 +136,7 @@ class Int16:	#ok
 		return '%d' % self.data
 
 
-class Uint16:	#ok
+class Uint16:
 	def __init__(self, d):
 		self.data = int(d)
 
@@ -191,7 +189,6 @@ class Int64:
 
 	def __str__(self):
 		return '%d' % self.data
-
 
 
 class Bytes:
@@ -266,7 +263,7 @@ class Signature:
 		return json.dumps(hexlify(self.data).decode('ascii'))
 
 
-class Bool(Uint8): # Bool = Uint8 #ok
+class Bool(Uint8):
 	def __init__(self, d):
 		super().__init__(d)
 
@@ -274,7 +271,7 @@ class Bool(Uint8): # Bool = Uint8 #ok
 		return True if self.data else False
 
 
-class Set(Array): # Set = Array
+class Set(Array):
 	def __init__(self, d):
 		super().__init__(d)
 
@@ -290,7 +287,7 @@ class FixedArray:
 		raise NotImplementedError
 
 
-class Optional:	#ok
+class Optional:
 	def __init__(self, d):
 		self.data = d
 
@@ -391,7 +388,7 @@ class ObjectId:
 		return self.Id
 		
 
-class Amount:	#ok
+class Amount:
 	def __init__(self, d):
 		self.amount, self.asset = d.strip().split(" ")
 		self.amount = float(self.amount)
@@ -435,7 +432,7 @@ class Beneficiaries:
 		return str(self.data)
 
 
-class PublicKey:	#ok
+class PublicKey:
 
 	def __init__(self, d):
 		self.data = d
@@ -447,7 +444,7 @@ class PublicKey:	#ok
 		return str(self.data)
 
 
-class Permission:	#ok
+class Permission:
 
 	def __init__(self, d):
 		self.data = d
@@ -472,7 +469,7 @@ class Permission:	#ok
 		return str(self.data)
 		
 
-class Optional_Permission:	#ok
+class Optional_Permission:
 	def __init__(self, d):
 		self.data = Permission(d) if d else d
 
@@ -491,7 +488,7 @@ class Optional_Permission:	#ok
 		return not bool(bytes(self.data))
 
 
-class ExtensionsComment:	#ok
+class ExtensionsComment:
 
 	def __init__(self, d):
 		self.data = d
@@ -515,7 +512,7 @@ class ExtensionsComment:	#ok
 		return str(self.data)
 
 
-class ArrayString:	#ok
+class ArrayString:
 	def __init__(self, d):
 		self.data = d
 		self.length = Varint32(len(self.data))
@@ -536,3 +533,30 @@ class ArrayString:	#ok
 			else:
 				r.append(JsonObj(a))
 		return json.dumps(r)
+
+		
+class DonateMemo:	#error
+
+	def __init__(self, d):
+		self.data = d
+
+	def __bytes__(self):
+	
+		b = b''
+		#b += bytes(Varint32(len(self.data)))
+		b += bytes(String(self.data["app"]))
+		b += bytes(Uint16(self.data["version"]))
+		
+		b += b''
+		#b += varint(len(self.data["target"]))
+		#b += bytes(String(self.data["target"]["url"]))
+		#b += bytes(Bytes(self.data["target"]))
+		
+		b += bytes(String(self.data["comment"]))
+	
+		return b
+
+	def __str__(self):
+		return str(self.data)
+		
+		

@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from calendar import timegm
 from binascii import hexlify, unhexlify
 
-from .storage import operations, asset_precision, chain_id, time_format, time_format_utc, expiration, prefix	
+from .storage import operations, time_format, time_format_utc, expiration, chain_id, prefix
 from .operations import type_op
 from .base58 import Base58
 
@@ -21,31 +21,36 @@ class Tx():
 	def __init__(self, rpc, **kwargs):
 
 		self.rpc = rpc
+		
+		self.chain_id = chain_id
+		self.prefix = prefix
 		self.expiration = int(kwargs.pop("expiration", expiration))
 		self.time_format = time_format
 		self.time_format_utc = time_format_utc
-		self.chain_id = chain_id
-		self.prefix = prefix
-
 		
-#----- broadcast -----
+	##### ##### broadcast ##### #####
 
 	def finalizeOp(self, ops, wif):
 	
-		tx = self.constructTx(ops, wif)		# Строим начальную транзакцию
-
-		#result = self.rpc.call('broadcast_transaction', tx)
-		### если успешно, то ничего нет {} поэтому проверяем на тип данных False == bool
-
-		result = self.rpc.call('broadcast_transaction_synchronous', tx)
-		if isinstance(result, bool):
-			return False
-		tx["block_num"] = result["block_num"]
-		tx["id"] = result["id"]
-		return tx
-
+		n = 1
+		while n < 3:
+			tx = self.constructTx(ops, wif)		# Строим начальную транзакцию
+			
+			#result = self.rpc.call('broadcast_transaction', tx)
+			### если успешно, то ничего нет {} поэтому проверяем на тип данных False == bool
+			
+			result = self.rpc.call('broadcast_transaction_synchronous', tx) if tx else False
+			if result:
+				if not(isinstance(result, bool)):
+					tx["block_num"] = result["block_num"]
+					tx["id"] = result["id"]
+					return tx
+			print('finalizeOp', result, 'try constructTx', n)
+			n += 1
+		return False
 		
-	def constructTx(self, ops, wif):
+		
+	def constructTx(self, ops, wifs):
 	
 		tx = {
 				"ref_block_num": None,		# construct
@@ -67,46 +72,45 @@ class Tx():
 				tx["ref_block_prefix"] = struct.unpack_from("<I", unhexlify(props["head_block_id"]), 4)[0]
 				break
 			except:
-				print('error constructTx get_block_params')
+				print('ERROR constructTx get_block_params')
 				n += 1
-				if n >= 10: return(tx)
+				if n >= 10: return False
 				time.sleep(1)
 		
 		# Properly Format Time that is x seconds in the future :param int secs: Seconds to go in the future (x>0) or the past (x<0)
 		now = datetime.strptime(props["time"], self.time_format)
-		new = timedelta(seconds = self.expiration) + now
+		new = timedelta(seconds=self.expiration) + now
 		tx["expiration"] = new.strftime(self.time_format)
 		
-		digest = self.get_digest(tx)	# получаем хэш транзакции
-		sigs = self.sign(wif, digest)	# получаем подпись
-		tx["signatures"] = sigs
+		digest = self.get_digest(tx)		# получаем хэш транзакции
+		wifs = [wifs] if not(isinstance(wifs, list)) else wifs
+		for wif in wifs: tx["signatures"].append(self.sign(wif, digest))	# получаем подпись\подписи
 		
 		return tx
 
 		
 	def get_digest(self, tx):
-	
+
+		"""
 		b = b''
 		b += struct.pack("<H", tx["ref_block_num"])														# Uint16
 		b += struct.pack("<I", tx["ref_block_prefix"])													# Uint32
 		b += struct.pack("<I", timegm(time.strptime((tx["expiration"] + "UTC"), self.time_format_utc)))	# PointInTime
 		ops = tx["operations"]
 		b += self.varint(len(ops))																		# Array len()
-		#print(b, '\n')
+		print('1', '\n', b, '\n')
 		for op in ops:
 			b += self.varint(operations[op[0]])															# Id op[0] name operations in dict
 				
 			for key, type_value in type_op[op[0]]:
 				b += bytes(type_value(op[1][key]))
-				#print(key, type_value, '\n', b)
-				#input()
 				
 		b += self.varint(len(tx["extensions"]))															# Set = Array []
-		#print(b)
-		#input('stop')
-		message = unhexlify(chain_id) + b																# chain_id + tx
-		#print(message)
-		#input('stop')
+		"""
+		hex = self.rpc.call('get_transaction_hex', tx)	#HF23
+		b = unhexlify(hex)								#HF23
+		
+		message = unhexlify(self.chain_id) + b															# chain_id + tx
 		digest = hashlib.sha256(message).digest()
 		
 		return digest
@@ -125,20 +129,16 @@ class Tx():
 	def sign(self, wif, digest):	### digest
 	
 		# Sign the message private key	
-		sigs = []
-		p = bytes(Base58(wif, prefix = self.prefix))
+		p = bytes(Base58(wif, prefix=self.prefix))
 		i = 0
 		cnt = 0
 		sk = ecdsa.SigningKey.from_string(p, curve=ecdsa.SECP256k1)
 		
 		while True:
 			cnt += 1
-			#print('cnt', cnt)
-			if not cnt % 20:
-				print("Still searching for a canonical signature. Tried %d times already!" % cnt)
+			if not cnt % 20: print("Still searching for a canonical signature. Tried %d times already!" % cnt)
 
 			# Deterministic k
-
 			k = ecdsa.rfc6979.generate_k(
 				sk.curve.generator.order(),
 				sk.privkey.secret_multiplier,
@@ -148,10 +148,7 @@ class Tx():
 				).digest())
 			
 			# Sign message
-			sigder = sk.sign_digest(
-									digest,
-									sigencode = ecdsa.util.sigencode_der,
-									k = k)
+			sigder = sk.sign_digest(digest, sigencode=ecdsa.util.sigencode_der, k=k)
 
 			# Reformating of signature
 			r, s = ecdsa.util.sigdecode_der(sigder, sk.curve.generator.order())
@@ -166,24 +163,18 @@ class Tx():
 				pubkey = sk.get_verifying_key()
 				### i = self.recoverPubkeyParameter(digest, signature, sk.get_verifying_key())
 				for ii in range(0, 4):
-					#print('ii', ii)	###
 					p = self.recover_public_key(digest, signature, ii)
 					#if (p.to_string() == pubkey.to_string() or self.compressedPubkey(p) == pubkey.to_string()):
-					if p.to_string() == pubkey.to_string():
-						#print('find GLS') ###
-						break
-				ii += 4  # compressed
-				ii += 27  # compact
+					if p.to_string() == pubkey.to_string(): break
+				ii += 4		# compressed
+				ii += 27	# compact
 				break
 		
 		# pack signature
 		sigstr = struct.pack("<B", ii)
 		sigstr += signature
 
-		sigs.append(hexlify(sigstr).decode('ascii'))
-		### sigs.append(Signature(sigstr))
-		### self.data["signatures"] = Array(sigs)
-		
+		sigs = hexlify(sigstr).decode('ascii')
 		return sigs
 		
 		
@@ -232,5 +223,6 @@ class Tx():
 		
 #----- main -----
 if __name__ == '__main__':
-
 	pass
+	
+

@@ -22,7 +22,7 @@ class WsClient():
 		rpc.call('command', *parameters)
 	"""
 	
-	def __init__(self, report = False, **kwargs):
+	def __init__(self, report=False, **kwargs):
 
 		self.report = report
 		self.num_retries = kwargs.get("num_retries", 20)
