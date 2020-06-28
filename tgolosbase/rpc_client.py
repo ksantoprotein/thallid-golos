@@ -10,7 +10,7 @@ from pprint import pprint
 from itertools import cycle
 
 from .storage import nodes, api_total
-from .proxy import Proxy
+#from .proxy import Proxy
 
 class Http():
 
