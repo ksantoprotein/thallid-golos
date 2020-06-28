@@ -1,5 +1,7 @@
 ﻿# -*- coding: utf-8 -*-
 
+#https://github.com/golos-blockchain
+
 chain_id = '782a3039b478c839e4cb0c941ff4eaeb7df40bdd68bd441afd444b9da763de12'		# GOLOS
 #chain_id = '5876894a41e6361bde2e73278f07340f2eb8b41c2facd29099de9deef6cdb679'		# GOLOSTEST
 
@@ -142,6 +144,7 @@ for key, value in api_list.items():
 	
 # Список транзакций по порядку для каждого БЧ он свой
 # https://github.com/GolosChain/golos-js/blob/master/src/auth/serializer/src/ChainTypes.js
+#https://github.com/bitfag/golos-python/blob/master/golosbase/operations.py#L1105
 op_names = [
 	'vote',										#OK
 	'comment',									#OK
@@ -260,6 +263,8 @@ rus_list = 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯа
 
 def resolve_url(url):
 
+	if '(' in url: url = url.split('(')[1]
+	if ')' in url: url = url.split(')')[0]
 	if '#' in url: url = url.split('#')[1]
 	if '@' in url: url = url.split('@')[1]
 
@@ -283,3 +288,4 @@ def resolve_body_ru(body):
 	if len(raw_body) == 0: return False
 		
 	return ''.join(raw_body)
+	

@@ -5,12 +5,12 @@ from requests.adapters import HTTPAdapter
 from requests.exceptions import ConnectionError
 
 import json
-from time import sleep
+from time import sleep, time
 from pprint import pprint
 from itertools import cycle
 
 from .storage import nodes, api_total
-#from .proxy import Proxy
+from .proxy import Proxy
 
 class Http():
 
@@ -20,6 +20,9 @@ class Http():
 
 class RpcClient(Http):
 
+	RPS_DELAY = 1.00	# ~3 requests per second
+	last_request = 0.0
+	
 	""" Simple Steem JSON-RPC API
 		This class serves as an abstraction layer for easy use of the Steem API.
 
@@ -61,9 +64,20 @@ class RpcClient(Http):
 			proxies = self.proxies.get_http() if self.PROXY else None
 			while n < self.num_retries:
 				try:
+				
+					# Ограничение по запросам в секунду
+					delay = self.RPS_DELAY - (time() - self.last_request)
+					if delay > 0: sleep(delay)
+				
 					#response = self.http.post(self.url, data=data, headers=self.headers, proxies=proxies, auth=auth)
 					response = self.http.post(self.url, data=data, headers=self.headers, proxies=proxies, timeout=30)
-					return response
+					self.last_request = time()
+					
+					if response.status_code == 503:
+						proxies = self.proxies.new_http() if self.PROXY else None	# next proxy
+						print('new proxy', proxies)
+					else:
+						return response
 					
 				#except ConnectionError as ce:
 				except:
@@ -97,10 +111,7 @@ class RpcClient(Http):
 			response = self.get_response(payload)
 
 			if response:
-				if response.status_code != 200:
-					if self.report:
-						print(n, 'ERROR status_code', response.status_code, response.text)
-				else:
+				if response.status_code == 200:
 					try:
 						res = response.json()
 						if 'error' in res:
@@ -112,6 +123,13 @@ class RpcClient(Http):
 							break
 					except:
 						print('ERROR JSON', response)
+				#elif response.status_code == 503:
+				#	proxies = self.proxies.new_http() if self.PROXY else None	# next proxy
+				#	print('new proxy', proxies)
+
+				else:
+					if self.report:
+						print(n, 'ERROR status_code', response.status_code, response.text)
 			else:
 				print('not connection to node', self.url)
 				

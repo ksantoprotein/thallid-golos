@@ -38,6 +38,10 @@ class Api():
 		self.create_account_min_golos_fee = self.chain_properties["create_account_min_golos_fee"]
 		self.create_account_min_delegation = self.chain_properties["create_account_min_delegation"]
 		
+		self.max_referral_interest_rate = self.chain_properties["max_referral_interest_rate"]	#1000
+		self.max_referral_term_sec = self.chain_properties["max_referral_term_sec"]				#31104000
+		self.max_referral_break_fee = self.chain_properties["max_referral_break_fee"]			#"5000.000 GOLOS",
+		
 		self.rus_d = rus_d
 		self.asset_precision = asset_precision
 		self.resolve_url = resolve_url
@@ -46,35 +50,6 @@ class Api():
 		self.finalizeOp = self.broadcast.finalizeOp
 		
 		self.key = Key(self.prefix)
-		
-	##########################################################################
-	def replace(self, title, body, author, permlink, wif, **kwargs):	#54321
-	
-		parent_beneficiaries = self.app
-		category = kwargs.pop("category", parent_beneficiaries)
-
-		parent_author, parent_permlink = '', category					# post
-		url = kwargs.pop("url", None)
-		if url: parent_author, parent_permlink = self.resolve_url(url)	# comment
-
-		app = kwargs.pop("app", parent_beneficiaries)
-		tags = kwargs.pop("tags", ['golos'])
-		json_metadata = {"app": app, "tags": tags}
-	
-		ops = []
-		op = {
-				"parent_author": parent_author,
-				"parent_permlink": parent_permlink,
-				"author": author,
-				"permlink": permlink,
-				"title": title,
-				"body": body,
-				"json_metadata": json.dumps(json_metadata),
-			}
-		ops.append(['comment', op])
-		tx = self.finalizeOp(ops, wif)
-		return tx
-	##########################################################################
 		
 	##### ##### account_by_key ##### #####
 
@@ -384,7 +359,6 @@ class Api():
 		'''
 		
 		accounts = self.rpc.call('get_accounts', logins)
-
 		info = self.get_dynamic_global_properties()
 		if not info: return False
 		
@@ -426,6 +400,10 @@ class Api():
 			last_claim = datetime.strptime(account["last_claim"], time_format)
 			age = (info["now"] - last_claim).total_seconds() / 1
 			account["claim_idleness"] = round(100 * age / info["claim_idleness_time"])
+			account["claim_idleness_time"] = info["claim_idleness_time"]
+			account["claim_idleness_age"] = age
+			account["claim_idleness_now"] = int(time())
+			account["tip50"] = int( time() - age + info["claim_idleness_time"] * 0.5 )
 			
 			# Определение post_bandwidth
 			
@@ -664,7 +642,6 @@ class Api():
 		
 		tx = self.finalizeOp(ops, wif)
 		return tx
-
 		
 	def transfers(self, raw_ops, from_account, wif):
 
@@ -732,7 +709,10 @@ class Api():
 		# roles = ["posting", "active", "memo", "owner"]
 		paroles = self.key.get_keys(login, password)
 
-		fee = self.account_creation_fee
+		asset = 'GOLOS'
+		fee = kwargs.get("fee", None)
+		fee = '{:.{precision}f} {asset}'.format(float(fee), precision=self.asset_precision[asset], asset=asset) if fee else self.account_creation_fee
+		
 		json_metadata = kwargs.pop("json_metadata", [])	#54321
 			
 		owner_key_authority = [ [paroles["public"]["owner"], 1] ]
@@ -741,21 +721,21 @@ class Api():
 		memo = paroles["public"]["memo"]
 		
 		owner_accounts_authority = []
-		active_accounts_authority = [ [creator, 1] ]
-		posting_accounts_authority = [ [creator, 1] ]
-		#active_accounts_authority = []
-		#posting_accounts_authority = []
-		
+		active_accounts_authority = []
+		posting_accounts_authority = []
+		#active_accounts_authority = [ [creator, 1] ]
+		#posting_accounts_authority = [ [creator, 1] ]
+			
 		ops = []
 		op = {
-				'fee': fee,
-				'creator': creator,
-				'new_account_name': login,
-				'owner': 	{'weight_threshold': 1, 'account_auths': owner_accounts_authority, 'key_auths': owner_key_authority,},
-				'active': 	{'weight_threshold': 1, 'account_auths': active_accounts_authority, 'key_auths': active_key_authority,},
-				'posting':	{'weight_threshold': 1, 'account_auths': posting_accounts_authority, 'key_auths': posting_key_authority,},
-				'memo_key': memo,
-				'json_metadata': json.dumps(json_metadata),
+				"fee": fee,
+				"creator": creator,
+				"new_account_name": login,
+				"owner": 	{'weight_threshold': 1, 'account_auths': owner_accounts_authority, 'key_auths': owner_key_authority,},
+				"active": 	{'weight_threshold': 1, 'account_auths': active_accounts_authority, 'key_auths': active_key_authority,},
+				"posting":	{'weight_threshold': 1, 'account_auths': posting_accounts_authority, 'key_auths': posting_key_authority,},
+				"memo_key": memo,
+				"json_metadata": json.dumps(json_metadata),
 			}
 			
 		ops.append(['account_create', op])
@@ -801,7 +781,7 @@ class Api():
 			"active":	{'weight_threshold': 1, 'account_auths': active_accounts_authority, 'key_auths': active_key_authority,},
 			"posting":	{'weight_threshold': 1, 'account_auths': posting_accounts_authority, 'key_auths': posting_key_authority,},
 			"memo_key": memo,
-			#"json_metadata": json.dumps(json_metadata, ensure_ascii = False),
+			#"json_metadata": json.dumps(json_metadata, ensure_ascii=False),
 			"json_metadata": json_metadata,
 			}
 		ops.append(['account_update', op])
@@ -932,9 +912,13 @@ class Api():
 		# roles = ["posting", "active", "memo", "owner"]
 		paroles = self.key.get_keys(login, password)
 
-		#fee = self.create_account_min_golos_fee
-		fee = '0.000 GOLOS'
-		vesting_shares = self.convert_golos_to_vests(float(self.create_account_min_delegation.split()[0]))	# aka 10 GOLOS delegation #54321
+		asset = 'GOLOS'
+		fee = kwargs.get("fee", None)
+		fee = '{:.{precision}f} {asset}'.format(float(fee), precision=self.asset_precision[asset], asset=asset) if fee else self.create_account_min_golos_fee
+		
+		create_account_min_delegation = kwargs.get("delegation", float(self.create_account_min_delegation.split()[0]))
+		total_delegation = create_account_min_delegation + float(self.create_account_min_golos_fee.split()[0])
+		vesting_shares = self.convert_golos_to_vests(total_delegation)
 		asset = 'GESTS'
 		delegation = '{:.{precision}f} {asset}'.format(vesting_shares, precision=self.asset_precision[asset], asset=asset)
 
@@ -952,6 +936,16 @@ class Api():
 		#posting_accounts_authority = [ [creator, 1] ]
 		
 		extensions = []
+		referral = kwargs.get("referral", None)
+		if referral:
+			dt = int(self.max_referral_term_sec / (60 * 60 * 24)) - 7
+			end_date = str((datetime.today() + timedelta(days=dt)).strftime(time_format))
+			account_referral = [0, {
+									"referrer": referral,
+									"interest_rate": self.max_referral_interest_rate,
+									"end_date": end_date,
+									"break_fee": fee,}]
+			extensions = [account_referral]
 		
 		ops = []
 		op = 	{
@@ -1181,6 +1175,34 @@ class Api():
 		return False
 
 	##### ##### ##### ##### #####
+	##########################################################################
+	def replace(self, title, body, author, permlink, wif, **kwargs):	#54321
+	
+		parent_beneficiaries = self.app
+		category = kwargs.pop("category", parent_beneficiaries)
+
+		parent_author, parent_permlink = '', category					# post
+		url = kwargs.pop("url", None)
+		if url: parent_author, parent_permlink = self.resolve_url(url)	# comment
+
+		app = kwargs.pop("app", parent_beneficiaries)
+		tags = kwargs.pop("tags", ['golos'])
+		json_metadata = {"app": app, "tags": tags}
+	
+		ops = []
+		op = {
+				"parent_author": parent_author,
+				"parent_permlink": parent_permlink,
+				"author": author,
+				"permlink": permlink,
+				"title": title,
+				"body": body,
+				"json_metadata": json.dumps(json_metadata),
+			}
+		ops.append(['comment', op])
+		tx = self.finalizeOp(ops, wif)
+		return tx
+	##########################################################################
 
 #----- main -----
 if __name__ == '__main__':
